@@ -1,17 +1,15 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-MainWindow::MainWindow(QWidget *parent)
+MainWindow::MainWindow(TCalls &c_calls, TDatabase &db,QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , calls(c_calls)
+    , database(db)
 {
     ui->setupUi(this);
-    fuel_names(names, missing);
-    file.open("calls.txt");
     flag = "";
-    read_from_file(calls);
-    qsize = names.size()- missing.size();
-    setupMissingTable(calls);
+    setupMissingTable();
     ui->stackedWidget->setCurrentWidget(ui->StartPage);
     ui->pushButtonBackClicked->setVisible(false);
     ui->pushButtonNextClicked->setVisible(true);
@@ -19,6 +17,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->lineEditMessage->setText("Remove missing students");
     ui->lineEditMessage->setReadOnly(true);
     ui->textEditOutput->setReadOnly(true);
+    onPushButtonColorTopic();
     connect(ui->pushButtonCallStudents, &QPushButton::clicked, this, &MainWindow::onPushButtonCallStudentsClicked);
     connect(ui->pushButtonMinusPoint, &QPushButton::clicked, this, &MainWindow::onPushButtonMinusPointClicked);
     connect(ui->pushButtonPlusPoint, &QPushButton::clicked, this, &MainWindow::onPushButtonPlusPointClicked);
@@ -32,128 +31,10 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::fuel_names(std::vector<std::string> &names, const std::vector<std::string>& missing)
+void MainWindow::call_students()
 {
-    read_from_file(calls);
-    for (std::pair<std::string, size_t> call:calls)
-    {
-        names.push_back(call.first);
-    }
-    delete_missing(names, missing);
-}
-
-void MainWindow::delete_missing(std::vector<std::string>& _names, const std::vector<std::string>& missing)
-{
-    for (std::string absent : missing)
-    {
-        auto it = std::find(_names.begin(), _names.end(), absent);
-        if (it != _names.end()) {
-            _names.erase(it);
-        }
-    }
-}
-
-void MainWindow::k_doske(std::vector<std::string> &names, const size_t stud, std::map<std::string, size_t>& calls, std::vector<std::string> missing)
-{
-    read_from_file(calls);
-    std::srand(std::time(nullptr));
-    std::vector<std::string> min_calls, max_calls;
-    size_t minim = min(calls),i = 0;
-    for (std::pair<std::string, size_t> call : calls)
-    {
-        if (call.second == minim)
-            min_calls.push_back(call.first);
-        else
-            max_calls.push_back(call.first);
-    }
-
-    delete_missing(min_calls, missing);
-    delete_missing(max_calls, missing);
-
-    while (!min_calls.empty() && i < stud)
-    {
-        int random = std::rand() % min_calls.size();
-        ui->textEditOutput->append(QString::fromStdString(min_calls[random]));
-        calls[min_calls[random]] += 1;
-        min_calls.erase(min_calls.begin() + random);
-        i++;
-    }
-    while (!max_calls.empty() && i < stud)
-    {
-        int random = std::rand() % max_calls.size();
-        ui->textEditOutput->append(QString::fromStdString(max_calls[random]));
-        calls[max_calls[random]] += 1;
-        max_calls.erase(max_calls.begin() + random);
-        i++;
-    }
-    save_to_file(calls, names);
-}
-
-void MainWindow::read_from_file(std::map<std::string, size_t> &calls)
-{
-    std::ifstream file("calls.txt");
-    std::string line;
-
-    if (!file.is_open()) {
-        ui->statusbar->showMessage("Eror file open");
-        return;
-    }
-
-    while (std::getline(file, line)) {
-
-        if (line.empty()) continue;
-
-        size_t last_space_pos = line.find_last_of(' ');
-
-        if (last_space_pos == std::string::npos ||
-            last_space_pos == 0 ||
-            last_space_pos == line.length() - 1) {
-            ui->statusbar->showMessage("Eror line");
-            continue;
-        }
-
-        try {
-            std::string name(line.begin(), line.begin() + last_space_pos);
-            std::string count_str(line.begin() + last_space_pos + 1, line.end());
-
-            if (count_str.empty()) {
-                ui->statusbar->showMessage("Eror file");
-                continue;
-            }
-
-            calls[name] = std::stoul(count_str);
-        }
-        catch (const std::exception& e) {
-            ui->statusbar->showMessage("Eror file");
-        }
-    }
-
-    file.close();
-    // std::ifstream file("calls.txt");
-    // std::string line;
-    // if (file.is_open())
-    //     while (std::getline(file, line))
-    //     {
-    //         std::string name(line.begin(), line.begin() + line.find_last_of(' ')), count_of_calls(line.begin() + line.find_last_of(' ') + 1, line.end());
-    //         calls[name] = atoi(count_of_calls.c_str());
-    //     }
-    // file.close();
-}
-
-void MainWindow::save_to_file(std::map<std::string, size_t> &calls, std::vector<std::string> names)
-{
-    std::ofstream file("calls.txt");
-    if (file.is_open())
-        for (std::string & name : names)
-        {
-            file << name << ' ' << calls[name] << '\n';
-        }
-    file.close();
-}
-
-void MainWindow::call_students(std::map<std::string, size_t>& calls, std::vector<std::string> names, const std::vector<std::string>& missing)
-{
-    size_t max = qsize, stud = 0;
+    std::vector<std::string> names = calls.getNamesWithoutMissings();
+    size_t max = names.size(), stud = 0;
     ui->textEditOutput->clear();
     stud = ui->textEditInput->toPlainText().toInt();
     if (stud > max || stud < 0)
@@ -161,8 +42,13 @@ void MainWindow::call_students(std::map<std::string, size_t>& calls, std::vector
         ui->statusbar->showMessage("Error count");
         return;
     }
-    k_doske(names, stud, calls, missing);
-    fuel_names(names, missing);
+    std::vector<std::string> names_2;
+    names_2 = calls.getNamesKDoske(stud);
+    for (size_t i = 0; i < stud ; i++)
+    {
+        ui->textEditOutput->append(QString::fromStdString(names_2[i]));
+    }
+    database.updateNumbersByName(calls.getCalls());
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* event)
@@ -173,20 +59,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event)
         if (keyEvent->key() == Qt::Key_Return &&
             !keyEvent->modifiers().testFlag(Qt::ShiftModifier))
         {
-            call_students(calls,names,missing);
+            call_students();
             return true;
         }
     }
     return QMainWindow::eventFilter(obj, event);
 }
 
-int MainWindow::min(std::map<std::string, size_t> calls)
-{
-    size_t min = 1000;
-    for (std::pair<std::string, size_t> call : calls)
-        min = (min > call.second) ? call.second : min;
-    return min;
-}
 
 void MainWindow::onPushButtonCallStudentsClicked()
 {
@@ -200,7 +79,7 @@ void MainWindow::onPushButtonMinusPointClicked()
 {
     ui->lineEditMessage->setText("Enter name");
     flag = "-";
-    setupChangedPointsTable(calls);
+    setupChangedPointsTable();
     ui->pushButtonBackClicked->setVisible(true);
     ui->stackedWidget->setCurrentWidget(ui->ChangedPointPage);
 }
@@ -209,15 +88,15 @@ void MainWindow::onPushButtonPlusPointClicked()
 {
     ui->lineEditMessage->setText("Enter name");
     flag = "+";
-    setupChangedPointsTable(calls);
+    setupChangedPointsTable();
     ui->pushButtonBackClicked->setVisible(true);
     ui->stackedWidget->setCurrentWidget(ui->ChangedPointPage);
 }
 
 void MainWindow::onPushButtonSaveDataClicked()
 {
-    save_to_file(calls,names);
     ui->statusbar->showMessage("Saved");
+    database.updateNumbersByName(calls.getCalls());
 }
 
 void MainWindow::onPushButtonBackClicked()
@@ -233,41 +112,43 @@ void MainWindow::onPushButtonNextClicked()
 {
     ui->stackedWidget->setCurrentWidget(ui->ChoicePage);
     ui->pushButtonNextClicked->setVisible(false);
-    qsize = calls.size()- missing.size();
     ui->lineEditMessage->setText("Сhoice the action");
+    database.updateNumbersByName(calls.getCalls());
 }
 
-void MainWindow::setupMissingTable(std::map<std::string, size_t> &calls)
+void MainWindow::setupMissingTable()
 {
-    int i = 0;
-    ui->tableWidget->setRowCount(calls.size());
+    size_t i = 0;
+    ui->tableWidget->setRowCount(calls.getCallsSize());
     ui->tableWidget->setColumnWidth(0, 300);
     ui->tableWidget->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     ui->tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    for (std::pair<std::string, int> call:calls)
+    std::vector<std::string> names = calls.getNames();
+    for (const auto& name : names)
     {
-        QTableWidgetItem *nameItem = new QTableWidgetItem(QString::fromStdString(call.first));
+        QTableWidgetItem *nameItem = new QTableWidgetItem(QString::fromStdString(name));
         QFont font = nameItem->font();
         font.setPointSize(12);
         nameItem->setFont(font);
         nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
         ui->tableWidget->setItem(i, 0, nameItem);
         QPushButton *button = new QPushButton("absent");
-        button->setProperty("studentName", QString::fromStdString(call.first));
+        button->setProperty("studentName", QString::fromStdString(name));
         connect(button, &QPushButton::clicked, this, &MainWindow::onMissingTableButtonClicked);
         ui->tableWidget->setCellWidget(i, 1, button);
         i++;
     }
 }
 
-void MainWindow::setupChangedPointsTable(std::map<std::string, size_t> &calls)
+void MainWindow::setupChangedPointsTable()
 {
-    ui->tableWidget_2->setRowCount(qsize);
+    std::vector<std::string> names = calls.getNamesWithoutMissings();
+    ui->tableWidget_2->setRowCount(names.size());
     ui->tableWidget_2->setColumnWidth(0, 300);
     ui->tableWidget_2->horizontalHeader()->setSectionResizeMode(1,QHeaderView::Stretch);
     ui->tableWidget_2->horizontalHeader()->setSectionResizeMode(2,QHeaderView::Stretch);
     ui->tableWidget_2->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    for (int i = 0; i < qsize; ++i)
+    for (size_t i = 0; i < names.size(); ++i)
     {
         QTableWidgetItem *nameItem = new QTableWidgetItem(QString::fromStdString(names[i]));
         nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
@@ -275,35 +156,70 @@ void MainWindow::setupChangedPointsTable(std::map<std::string, size_t> &calls)
         font.setPointSize(12);
         nameItem->setFont(font);
         ui->tableWidget_2->setItem(i, 0, nameItem);
-        QTableWidgetItem *callItem = new QTableWidgetItem(QString::number(calls[names[i]]));
+        QTableWidgetItem *callItem = new QTableWidgetItem(QString::number(calls.getPoints(names[i])));
         callItem->setFont(font);
         callItem->setFlags(callItem->flags() & ~Qt::ItemIsEditable);
         QPushButton *button = new QPushButton(flag);
         button->setProperty("studentName", QString::fromStdString(names[i]));
         ui->tableWidget_2->setItem(i, 1, callItem);
-        connect(button, SIGNAL(clicked()), this, SLOT(onChangedPointsTableButtonClicked()));
+        connect(button, &QPushButton::clicked, this,&MainWindow::onChangedPointsTableButtonClicked);
         ui->tableWidget_2->setCellWidget(i, 2, button);
     }
 }
 
 void MainWindow::updateChangedPointsTable()
 {
-    for (int i = 0; i < qsize; ++i) {
+    std::vector<std::string> names = calls.getNamesWithoutMissings();
+    for (size_t i = 0; i < names.size(); ++i) {
         QTableWidgetItem *callItem = ui->tableWidget_2->item(i, 1);
         if (callItem) {
-            callItem->setText(QString::number(calls[names[i]]));
+            callItem->setText(QString::number(calls.getPoints(names[i])));
         }
     }
-    save_to_file(calls, names);
+    database.updateNumbersByName(calls.getCalls());
+}
+
+void MainWindow::onPushButtonColorTopic()
+{
+    // переписать нормально
+    ui->pushButtonBackClicked->setStyleSheet("background-color: #323232;");
+    ui->pushButtonCallStudents->setStyleSheet("background-color: #323232;");
+    ui->pushButtonMinusPoint->setStyleSheet("background-color: #323232;");
+    ui->pushButtonPlusPoint->setStyleSheet("background-color: #323232;");
+    ui->pushButtonNextClicked->setStyleSheet("background-color: #323232;");
+    ui->pushButtonSaveData->setStyleSheet("background-color: #323232;");
+    ui->CallPage->setStyleSheet("background-color: #323232;");
+    ui->ChangedPointPage->setStyleSheet("background-color: #323232;");
+    ui->ChoicePage->setStyleSheet("background-color: #323232;");
+    ui->StartPage->setStyleSheet("background-color: #323232;");
+    ui->centralwidget->setStyleSheet("background-color: #323232;");
+    ui->lineEditMessage->setStyleSheet("background-color: #323232;");
+    ui->textEditInput->setStyleSheet("background-color: #323232;");
+    ui->textEditOutput->setStyleSheet("background-color: #323232;");
+    ui->menubar->setStyleSheet("background-color: #323232;");
+    ui->tableWidget->setStyleSheet("background-color: #323232;");
+    ui->tableWidget_2->setStyleSheet("background-color: #323232;");
+    ui->stackedWidget->setStyleSheet("background-color: #323232;");
 }
 
 void MainWindow::onMissingTableButtonClicked()
 {
     QPushButton *button = qobject_cast<QPushButton*>(sender());
     if (!button) return;
-
     QString studentName = button->property("studentName").toString();
-    missing.push_back(studentName.toStdString());
+    calls.setMissings(studentName.toStdString());
+    for (int row = 0; row < ui->tableWidget->rowCount(); ++row) {
+        if (ui->tableWidget->cellWidget(row, 1) == button) {
+            QTableWidgetItem* nameItem = ui->tableWidget->item(row, 0);
+            if (nameItem) {
+                QFont font = nameItem->font();
+                font.setStrikeOut(true);
+                nameItem->setFont(font);
+            }
+            break;
+        }
+    }
+    button->setEnabled(false);
 }
 
 void MainWindow::onChangedPointsTableButtonClicked()
@@ -313,9 +229,9 @@ void MainWindow::onChangedPointsTableButtonClicked()
 
     QString studentName = button->property("studentName").toString();
     if(flag == "+")
-        calls[studentName.toStdString()]++;
-    else if((flag == "-") && (calls[studentName.toStdString()] > 0))
-        calls[studentName.toStdString()]--;
+        calls.setCallsByName(studentName.toStdString(),1);
+    else if((flag == "-") && (calls.getPoints(studentName.toStdString()) > 0))
+        calls.setCallsByName(studentName.toStdString(),-1);
     else
         ui->statusbar->showMessage("Error");
     updateChangedPointsTable();

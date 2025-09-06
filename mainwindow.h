@@ -1,13 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
-#include <QMainWindow>
+#include <QtWidgets/QMainWindow>
 #include <QHeaderView>
-#include <vector>
-#include <string>
-#include <map>
-#include <cstdlib>
-#include <ctime>
-#include <fstream>
 #include <QString>
 #include <QKeyEvent>
 #include <QPushButton>
@@ -15,6 +9,10 @@
 #include <QRandomGenerator>
 #include <QDebug>
 #include <QTableWidget>
+#include <QFont>
+#include "tcalls.h"
+#include "tdatabase.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -26,19 +24,16 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    MainWindow(TCalls &c_calls, TDatabase &db,QWidget *parent = nullptr);
     ~MainWindow();
-    void fuel_names(std::vector<std::string>& names, const std::vector<std::string>& missing);
-    void k_doske(std::vector<std::string> &names, const size_t stud, std::map<std::string, size_t>& calls, std::vector<std::string> missing);
-    void read_from_file(std::map<std::string, size_t>& calls);
-    void save_to_file(std::map<std::string, size_t>& calls,std::vector<std::string> names);
-    void call_students(std::map<std::string, size_t>& calls, std::vector<std::string> names, const std::vector<std::string>& missing);
+    // void read_from_file(const TCalls &c_calls_, TDatabase database_);
+    // void save_to_file(const TCalls &c_calls_, TDatabase database_);
+    void call_students();
     bool eventFilter(QObject* obj, QEvent* event);
-    int min(std::map<std::string, size_t> calls);
-    void delete_missing(std::vector<std::string>& _names, const std::vector<std::string>& missing);
-    void setupMissingTable(std::map<std::string, size_t> &calls);
-    void setupChangedPointsTable(std::map<std::string, size_t> &calls);
+    void setupMissingTable();
+    void setupChangedPointsTable();
     void updateChangedPointsTable();
+    void onPushButtonColorTopic();
 private slots:
     void onPushButtonCallStudentsClicked();
     void onPushButtonMinusPointClicked();
@@ -52,10 +47,8 @@ signals:
     void qonKeyBoardEnterClicked();
 private:
     Ui::MainWindow *ui;
-    std::fstream file;
-    std::vector<std::string> names, in_names, missing;
-    std::map<std::string, size_t> calls;
     QString flag;
-    int qsize;
+    TCalls calls;
+    TDatabase database;
 };
 #endif // MAINWINDOW_H
